@@ -39,11 +39,13 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		30D218F22B10F24C006059D8 /* ImagesList */ = {
+		30D218F82B11E5EA006059D8 /* ImageList */ = {
 			isa = PBXGroup;
 			children = (
+				30DE91222AFABD350083AAF9 /* ImagesListViewController.swift */,
+				30D218EC2B10F18C006059D8 /* ImagesListCell.swift */,
 			);
-			path = ImagesList;
+			path = ImageList;
 			sourceTree = "<group>";
 		};
 		30DE91122AFABD350083AAF9 = {
@@ -65,11 +67,9 @@
 		30DE911D2AFABD350083AAF9 /* ImageFeed */ = {
 			isa = PBXGroup;
 			children = (
-				30D218F22B10F24C006059D8 /* ImagesList */,
 				30DE911E2AFABD350083AAF9 /* AppDelegate.swift */,
 				30DE91202AFABD350083AAF9 /* SceneDelegate.swift */,
-				30DE91222AFABD350083AAF9 /* ImagesListViewController.swift */,
-				30D218EC2B10F18C006059D8 /* ImagesListCell.swift */,
+				30D218F82B11E5EA006059D8 /* ImageList */,
 				30DE91242AFABD350083AAF9 /* Main.storyboard */,
 				30DE91272AFABD380083AAF9 /* Assets.xcassets */,
 				30DE91292AFABD380083AAF9 /* LaunchScreen.storyboard */,
