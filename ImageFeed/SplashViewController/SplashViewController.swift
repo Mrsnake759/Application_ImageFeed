@@ -100,7 +100,19 @@ extension SplashViewController: AuthViewControllerDelegate {
                 }
             case .failure:
                 UIBlockingProgressHUD.dismiss()
+                self.showAlert()
             }
         }
+    }
+}
+
+extension SplashViewController {
+    func showAlert() {
+        let alert = UIAlertController(title: "Что-то пошло не так", message: "Не удалось войти в систему", preferredStyle: .alert)
+        let uiAlertAction = UIAlertAction(title: "Ok", style: .default) { _ in
+            alert.dismiss(animated: true)
+        }
+        alert.addAction(uiAlertAction)
+        present(alert, animated: true)
     }
 }
