@@ -45,7 +45,7 @@ final class ProfileService {
             case .success(let profileResult):
                let profile = Profile(
                     username: profileResult.username,
-                    name: profileResult.first_name + " " + profileResult.last_name,
+                    name: profileResult.first_name + " " + (profileResult.last_name ?? ""),
                     loginName: "@" + profileResult.username,
                     bio: profileResult.bio ?? ""
                 )
