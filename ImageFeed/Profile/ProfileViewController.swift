@@ -8,8 +8,11 @@
 import UIKit
 import ProgressHUD
 import Kingfisher
+import WebKit
 
 final class ProfileViewController: UIViewController {
+    var animationLayers = Set<CALayer>()
+    
     private enum Const {
         static let imageViewSide: CGFloat = 70
         static let imageViewTopOffset: CGFloat = 20
@@ -23,7 +26,7 @@ final class ProfileViewController: UIViewController {
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
     
     private let imageView: UIImageView = {
-        let profileImage = UIImage(named: "avatar")
+        let profileImage = UIImage(named: "profilePhoto")
         let imageView = UIImageView(image: profileImage)
         imageView.translatesAutoresizingMaskIntoConstraints = false
         imageView.tintColor = .gray
@@ -33,7 +36,6 @@ final class ProfileViewController: UIViewController {
     private let nameLabel: UILabel = {
         let nameLabel = UILabel()
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        nameLabel.text = "Екатерина Новикова"
         nameLabel.textColor = .white
         nameLabel.font = nameLabel.font.withSize(23)
         return nameLabel
@@ -42,7 +44,6 @@ final class ProfileViewController: UIViewController {
     private let loginLabel: UILabel = {
         let loginLabel = UILabel()
         loginLabel.translatesAutoresizingMaskIntoConstraints = false
-        loginLabel.text = "@ekaterina_nov"
         loginLabel.textColor = .gray
         loginLabel.font = loginLabel.font.withSize(13)
         return loginLabel
@@ -51,7 +52,6 @@ final class ProfileViewController: UIViewController {
     private let descriptionLabel: UILabel = {
         let descriptionLabel = UILabel()
         descriptionLabel.translatesAutoresizingMaskIntoConstraints = false
-        descriptionLabel.text = "Hello, world!"
         descriptionLabel.textColor = .white
         descriptionLabel.font = descriptionLabel.font.withSize(13)
         return descriptionLabel
@@ -82,9 +82,9 @@ final class ProfileViewController: UIViewController {
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            self.downloadAvatar()
+            self.downloadAndSetAvatar()
         }
-        downloadAvatar()
+        downloadAndSetAvatar()
     }
     
     // MARK: - Initial setup
@@ -97,7 +97,6 @@ final class ProfileViewController: UIViewController {
         imageView.layer.masksToBounds = true
         imageView.layer.cornerRadius = Const.imageViewSide * 0.5
         imageView.contentMode = .scaleAspectFill
-        
         
         view.addSubview(nameLabel)
         nameLabel.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: Const.nameLabelTopOffset).isActive = true
@@ -127,16 +126,77 @@ final class ProfileViewController: UIViewController {
         descriptionLabel.text = profile.bio
     }
     
-    private func downloadAvatar() {
+    private func downloadAndSetAvatar() {
+        addAnimateGradientTo(
+            view: imageView,
+            frame: CGRect(origin: .zero, size: CGSize(width: 70, height: 70)),
+            cornerRadius: 35
+        )
+        
         guard let avatarURL = profileImageService.avatarURL else { return }
-        DispatchQueue.main.async {
-            self.imageView.kf.indicatorType = .activity
-            self.imageView.kf.setImage(with: avatarURL)
+        
+        imageView.kf.indicatorType = .activity
+        imageView.kf.setImage(with: avatarURL) { [weak self] _ in
+            guard let self = self else { return }
+            self.animationLayers.forEach { $0.removeFromSuperlayer() }
+            self.animationLayers.removeAll()
         }
+    }
+    
+    private func showEscapeAlert() {
+        let alert = UIAlertController(title: "Пока, пока!", message: "Уверены что хотите выйти?", preferredStyle: .alert)
+        let uiAlertNoAction = UIAlertAction(title: "Нет", style: .default) { _ in
+            alert.dismiss(animated: true)
+        }
+        let uiAlertOkAction = UIAlertAction(title: "Да", style: .destructive) { [weak self] _ in
+            guard let self = self else { return }
+            OAuth2TokenStorage.token = nil
+            self.clean()
+            let splashViewController = SplashViewController()
+            splashViewController.modalPresentationStyle = .fullScreen
+            self.present(splashViewController, animated: true)
+            alert.dismiss(animated: true)
+        }
+        alert.addAction(uiAlertOkAction)
+        alert.addAction(uiAlertNoAction)
+        present(alert, animated: true)
     }
     
     // MARK: - Actions
     @objc private func logoutButtonTapped() {
-        descriptionLabel.removeFromSuperview()
+        showEscapeAlert()
+    }
+    
+    private func clean() {
+        HTTPCookieStorage.shared.removeCookies(since: Date.distantPast)
+        WKWebsiteDataStore.default().fetchDataRecords(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()) { records in
+            records.forEach { record in
+                WKWebsiteDataStore.default().removeData(ofTypes: record.dataTypes, for: [record], completionHandler: {})
+            }
+        }
+    }
+    
+    private func addAnimateGradientTo(view: UIView, frame: CGRect, cornerRadius: CGFloat) {
+        let gradient = CAGradientLayer()
+        gradient.frame = frame
+        gradient.locations = [0, 0.1, 0.3]
+        gradient.colors = [
+            UIColor(red: 0.682, green: 0.686, blue: 0.706, alpha: 1).cgColor,
+            UIColor(red: 0.531, green: 0.533, blue: 0.553, alpha: 1).cgColor,
+            UIColor(red: 0.431, green: 0.433, blue: 0.453, alpha: 1).cgColor
+        ]
+        gradient.startPoint = CGPoint(x: 0, y: 0.5)
+        gradient.endPoint = CGPoint(x: 1, y: 0.5)
+        gradient.cornerRadius = cornerRadius
+        gradient.masksToBounds = true
+        animationLayers.insert(gradient)
+        view.layer.addSublayer(gradient)
+        
+        let gradientChangeAnimation = CABasicAnimation(keyPath: "locations")
+        gradientChangeAnimation.duration = 1.0
+        gradientChangeAnimation.repeatCount = .infinity
+        gradientChangeAnimation.fromValue = [0, 0.1, 0.3]
+        gradientChangeAnimation.toValue = [0, 0.8, 1]
+        gradient.add(gradientChangeAnimation, forKey: "locationsChange")
     }
 }

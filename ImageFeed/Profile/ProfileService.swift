@@ -56,7 +56,7 @@ final class ProfileService {
                 self.lastProfileCode = nil
                 return
             }
-        }
+        } as! URLSessionTask
         getProfileTask?.resume()
     }
     
