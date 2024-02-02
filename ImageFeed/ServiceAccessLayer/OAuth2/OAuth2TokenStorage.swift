@@ -9,18 +9,20 @@ import Foundation
 import SwiftKeychainWrapper
 
 final class OAuth2TokenStorage {
-    static private let bearerTokenKey = "imageFeedBearerToken"
-    static var token: String? {
-        get {
-            let token: String? = KeychainWrapper.standard.string(forKey: OAuth2TokenStorage.bearerTokenKey)
-            return token
-        }
+    private let kToken = "token"
+    var token: String? {
         set {
-            guard let newValue = newValue else {
-                KeychainWrapper.standard.removeObject(forKey: OAuth2TokenStorage.bearerTokenKey)
+            guard let token = newValue else {
+                KeychainWrapper.standard.removeObject(forKey: kToken)
                 return
             }
-            KeychainWrapper.standard.set(newValue, forKey: OAuth2TokenStorage.bearerTokenKey)
+            let isSuccess = KeychainWrapper.standard.set(token, forKey: kToken)
+            guard isSuccess else {
+                fatalError("Невозможно сохранить token")
+            }
+        }
+        get {
+            KeychainWrapper.standard.string(forKey: kToken)
         }
     }
 }

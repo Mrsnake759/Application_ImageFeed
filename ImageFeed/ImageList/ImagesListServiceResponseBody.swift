@@ -7,44 +7,46 @@
 
 import Foundation
 
-// MARK: - ImagesListResultElement
-struct ImagesListResultElement: Codable {
-    
-    // MARK: - Urls
-    struct Urls: Codable {
-        let raw, full, regular, small: URL
-        let thumb: URL
-    }
-    
+struct PhotoResult: Decodable {
     let id: String
-    // MARK: - parse date from string swift
-    let createdAt: Date
-    let width, height: Int
-    let description: String?
-    let urls: Urls
-    let likedByUser: Bool
+    let createdAt: String?
+    let welcomeDescription: String?
+    let isLiked: Bool?
+    let urls: ImageUrlsResult?
+    let width: Int?
+    let height: Int?
     
     enum CodingKeys: String, CodingKey {
-        case id
+        case id = "id"
         case createdAt = "created_at"
-        case width, height
-        case description
-        case urls
-        case likedByUser = "liked_by_user"
+        case welcomeDescription = "description"
+        case isLiked = "liked_by_user"
+        case urls = "urls"
+        case width = "width"
+        case height = "height"
     }
+}
+
+struct ImageUrlsResult: Decodable {
+    let thumbImageURL: String?
+    let largeImageURL: String?
     
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        width = try container.decode(Int.self, forKey: .width)
-        height = try container.decode(Int.self, forKey: .height)
-        description = try? container.decode(String.self, forKey: .description)
-        urls = try container.decode(Urls.self, forKey: .urls)
-        likedByUser = try container.decode(Bool.self, forKey: .likedByUser)
-        
-        let createdAtString = try container.decode(String.self, forKey: .createdAt)
-        
-        let dateFormatter = ISO8601DateFormatter()
-        createdAt = dateFormatter.date(from:createdAtString)!
+    enum CodingKeys: String, CodingKey {
+        case thumbImageURL = "thumb"
+        case largeImageURL = "full"
     }
+}
+
+struct LikePhotoResult: Decodable {
+    let photo: PhotoResult?
+}
+
+struct Photo {
+    let id: String
+    let size: CGSize
+    let createdAt: Date?
+    let welcomeDescription: String?
+    let thumbImageURL: String?
+    let largeImageURL: String?
+    let isLiked: Bool
 }

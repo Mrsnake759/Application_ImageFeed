@@ -5,107 +5,145 @@
 //  Created by artem on 28.01.2024.
 //
 
-import UIKit
-
-//private let useMockData = true
+import Foundation
 
 final class ImagesListService {
-    let DidChangeNotification = Notification.Name(rawValue: "ImagesListServiceDidChange")
-    
+    static let didChangeNotification = Notification.Name(rawValue: "ImagesListServiceDidChange")
+    static let shared = ImagesListService()
     private (set) var photos: [Photo] = []
-    private var photosTask: URLSessionDataTaskProtocol?
-    private var isReachedTheEnd: Bool = false
-    private var isLikedTask: URLSessionDataTaskProtocol?
-    
     private var lastLoadedPage: Int?
+    private let perPage = "10"
+    private var task: URLSessionTask?
     
-    private enum GetImagesListError: Error {
-        case ImagesCodeError
-        case unableToDecodeStringFromImagesData
-        case noURL
+    private let dateFormatter = ISO8601DateFormatter()
+    
+    func updatePhotos(_ photos: [Photo]) {
+        self.photos = photos
     }
     
-    func fetchPhotosNextPage(token: String, _ completion: ((Result<[Photo], Error>) -> Void)? = nil) {
-        assert(Thread.isMainThread)
-        guard !isReachedTheEnd else {
-            completion?(.success([]))
-            return
-        }
-        
-        let nextPage = lastLoadedPage == nil
-            ? 1
-            : lastLoadedPage! + 1
+    func clean() {
+        photos = []
+        lastLoadedPage = nil
+        task?.cancel()
+        task = nil
+    }
+}
 
-        let request = makeImagesListRequest(token: token, page: nextPage)
-//        let mockSession = URLSessionMock()
-//        mockSession.page = nextPage
+extension ImagesListService {
+    
+    func fetchPhotosNextPage() {
+        assert(Thread.isMainThread)
+        guard task == nil else { return }
         
-        let session: URLSessionProtocol = URLSession.shared
-        photosTask = session.objectTask(for: request) { [weak self] (result: Result<[ImagesListResultElement], Error>) in
-            guard let self = self else { return }
-            switch result {
-            case .success(let photosResult):
-                let photosPage = photosResult.map(Photo.init(imagesListResultElement:))
-                self.photos += photosPage
-                self.lastLoadedPage = nextPage
-                NotificationCenter.default.post(name: self.DidChangeNotification, object: nil)
-                completion?(.success(photosPage))
-                if photosResult.isEmpty {
-                    self.isReachedTheEnd = true
+        let page = lastLoadedPage == nil ? 1 : lastLoadedPage! + 1
+        guard let token = OAuth2TokenStorage().token else { return }
+        guard let request = fetchImagesListRequest(token, page: String(page), perPage: perPage) else { return }
+        
+        let task = URLSession.shared.objectTask(for: request) { [weak self] (result: Result<[PhotoResult], Error>) in
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.task = nil
+                switch result {
+                case .success(let photoResults):
+                    for photoResult in photoResults {
+                        self.photos.append(self.convert(photoResult))
+                    }
+                    self.lastLoadedPage = page
+                    NotificationCenter.default
+                        .post(
+                            name: ImagesListService.didChangeNotification,
+                            object: self,
+                            userInfo: ["Images" : self.photos])
+                case .failure(let error):
+                    assertionFailure("Ошибка получения изображений \(error)")
                 }
-            case .failure:
-                completion?(.failure(GetImagesListError.unableToDecodeStringFromImagesData))
-                return
             }
         }
-        photosTask?.resume()
+        self.task = task
+        task?.resume()
     }
     
-    private func makeImagesListRequest(token: String, page: Int) -> URLRequest {
-        let params = [URLQueryItem(name: "page", value: "\(page)"), URLQueryItem(name: "per_page", value: "10")]
-        var urlComps = URLComponents(string: "https://api.unsplash.com/photos")!
-        urlComps.queryItems = params
-        let result = urlComps.url!
-        var request = URLRequest(url: result)
-        request.setValue("Bearer \(String(describing: token))", forHTTPHeaderField: "Authorization")
-        request.httpMethod = "GET"
+    private func convert(_ photoResult: PhotoResult) -> Photo {
+        
+        let date = dateFormatter.date(from:photoResult.createdAt ?? "")
+        return Photo.init(id: photoResult.id,
+                          size: CGSize(width: photoResult.width ?? 0, height: photoResult.height ?? 0),
+                          createdAt: date,
+                          welcomeDescription: photoResult.welcomeDescription,
+                          thumbImageURL: photoResult.urls?.thumbImageURL,
+                          largeImageURL: photoResult.urls?.largeImageURL,
+                          isLiked: photoResult.isLiked ?? false)
+    }
+    
+    private func fetchImagesListRequest(_ token: String, page: String, perPage: String) -> URLRequest? {
+        var request = URLRequest.makeHTTPRequest(
+            path: "/photos?page=\(page)&&per_page=\(perPage)",
+            httpMethod: "GET",
+            baseURL: DefaultBaseURL)
+        request?.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         return request
     }
     
-    private func postLike(token: String, photoId: String) -> URLRequest {
-        let url = URL(string: "https://api.unsplash.com/photos/\(photoId)/like")!
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(String(describing: token))", forHTTPHeaderField: "Authorization")
-        request.httpMethod = "POST"
-        return request
-    }
-    
-    private func deleteLike(token: String, photoId: String) -> URLRequest {
-        let url = URL(string: "https://api.unsplash.com/photos/\(photoId)/like")!
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(String(describing: token))", forHTTPHeaderField: "Authorization")
-        request.httpMethod = "DELETE"
-        return request
-    }
-    
-    func changeLike(token: String, photo: Photo, _ completion: @escaping (Result<Photo, Error>) -> Void) {
-        let request: URLRequest = photo.isLiked ? deleteLike(token: token, photoId: photo.id) : postLike(token: token, photoId: photo.id)
-        let session: URLSessionProtocol = URLSession.shared
-        isLikedTask = session.objectTask(for: request, keyPath: "photo") { [weak self] (result: Result<ImagesListResultElement, Error>) in
+    func changeLike(photoId: String, isLike: Bool, _ completion: @escaping (Result<Void, Error>) -> Void) {
+        assert(Thread.isMainThread)
+        task?.cancel()
+        
+        guard let token = OAuth2TokenStorage().token else { return }
+        
+        var request: URLRequest?
+        if isLike {
+            request = deleteLikeRequest(token, photoId: photoId)
+        } else {
+            request = postLikeRequest(token, photoId: photoId)
+        }
+        guard let request = request else { return }
+        
+        let task = URLSession.shared.objectTask(for: request) { [weak self] (result: Result<LikePhotoResult, Error>) in
             guard let self = self else { return }
+            self.task = nil
             switch result {
             case .success(let photoResult):
-                let updatedPhoto = Photo(imagesListResultElement: photoResult)
-                if let index = self.photos.firstIndex(where: { photo in
-                    photo.id == updatedPhoto.id
-                }) {
-                    self.photos[index] = updatedPhoto
+                let isLiked = photoResult.photo?.isLiked ?? false
+                if let index = self.photos.firstIndex(where: { $0.id == photoResult.photo?.id }) {
+                    let photo = self.photos[index]
+                    let newPhoto = Photo(
+                        id: photo.id,
+                        size: photo.size,
+                        createdAt: photo.createdAt,
+                        welcomeDescription: photo.welcomeDescription,
+                        thumbImageURL: photo.thumbImageURL,
+                        largeImageURL: photo.largeImageURL,
+                        isLiked: isLiked
+                    )
+                    self.photos = self.photos.withReplaced(itemAt: index, newValue: newPhoto)
                 }
-                completion(.success(updatedPhoto))
+                print("isLiked = \(String(describing: isLiked))")
+                completion(.success(()))
             case .failure(let error):
                 completion(.failure(error))
             }
         }
-        isLikedTask!.resume()
+        self.task = task
+        task?.resume()
+    }
+    
+    private func postLikeRequest(_ token: String, photoId: String) -> URLRequest? {
+        var requestPost = URLRequest.makeHTTPRequest(
+            path: "photos/\(photoId)/like",
+            httpMethod: "POST",
+            baseURL: DefaultBaseURL)
+        requestPost?.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return requestPost
+    }
+    
+    private func deleteLikeRequest(_ token: String, photoId: String) -> URLRequest? {
+        var requestDelete = URLRequest.makeHTTPRequest(
+            path: "photos/\(photoId)/like",
+            httpMethod: "DELETE",
+            baseURL: DefaultBaseURL)
+        requestDelete?.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return requestDelete
     }
 }
+
+
