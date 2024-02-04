@@ -9,7 +9,11 @@ import UIKit
 import ProgressHUD
 
 final class UIBlockingProgressHUD {
+    
     private static var window: UIWindow? {
+        ProgressHUD.animationType = .systemActivityIndicator
+        ProgressHUD.colorHUD = .ypBlack
+        ProgressHUD.colorAnimation = .ypGray
         return UIApplication.shared.windows.first
     }
     
@@ -22,4 +26,6 @@ final class UIBlockingProgressHUD {
         window?.isUserInteractionEnabled = true
         ProgressHUD.dismiss()
     }
+    
 }
+

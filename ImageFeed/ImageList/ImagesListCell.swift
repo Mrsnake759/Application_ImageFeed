@@ -8,34 +8,33 @@
 import UIKit
 import Kingfisher
 
-protocol ImagesListCellDelegate: AnyObject {
-    func imageListCellDidTapLike(_ cell: ImagesListCell)
-}
-
 final class ImagesListCell: UITableViewCell {
     
-    
-    @IBOutlet var dateLabel: UILabel!
-    @IBOutlet var likeButton: UIButton!
     weak var delegate: ImagesListCellDelegate?
-    @IBOutlet var cellImageView: UIImageView!
+
+    @IBOutlet weak var cellImage: UIImageView!
+    @IBOutlet weak var likeButton: UIButton!
+    @IBOutlet weak var dateLabel: UILabel!
+    
+    @IBAction func likeButtonClicked(_ sender: Any) {
+        delegate?.ImagesListCellDidTapLike(self)
+    }
     
     static let reuseIdentifier = "ImagesListCell"
     
-    @IBAction func likeButtonTapped(_ sender: Any) {
-        delegate?.imageListCellDidTapLike(self)
-    }
-   
-  
-    
     override func prepareForReuse() {
         super.prepareForReuse()
-        cellImageView.kf.cancelDownloadTask()
+        
+        cellImage.image = nil
+        cellImage.kf.cancelDownloadTask()
     }
     
-    func setIsLiked(isLiked: Bool) {
-        let isLiked = isLiked ? UIImage(named: "like_button_on") : UIImage(named: "like_button_off")
-        likeButton.setImage(isLiked, for: .normal)
+    func setLike(like: Bool) {
+        if like {
+            likeButton.setImage(UIImage(named: "LikeActive"), for: .normal)
+        } else {
+            likeButton.setImage(UIImage(named: "LikeNoActive"), for: .normal)
+        }
     }
 }
 

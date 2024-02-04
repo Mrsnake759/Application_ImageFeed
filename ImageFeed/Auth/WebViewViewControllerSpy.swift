@@ -5,13 +5,11 @@
 //  Created by artem on 02.02.2024.
 //
 
-//import ImageFeed
 import Foundation
-import UIKit
 
-final class WebViewViewControllerSpy: UIViewController, WebViewViewControllerProtocol {
+class WebViewViewControllerSpy: WebViewViewControllerProtocol {
     var loadRequestCalled: Bool = false
-    var presenter: ImageFeed.WebViewPresenterProtocol?
+    var presenter: WebViewPresenterProtocol?
     
     func load(request: URLRequest) {
         loadRequestCalled = true
@@ -27,3 +25,4 @@ final class WebViewViewControllerSpy: UIViewController, WebViewViewControllerPro
     
     
 }
+

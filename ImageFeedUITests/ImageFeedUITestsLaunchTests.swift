@@ -27,4 +27,3 @@ final class ImageFeedUITestsLaunchTests: XCTestCase {
         add(attachment)
     }
 }
-
